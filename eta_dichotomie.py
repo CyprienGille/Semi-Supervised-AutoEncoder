@@ -109,8 +109,8 @@ def get_data(
         X = scale(X, axis=0, with_mean=False)
         n_samples = len(y)
 
+    np.random.seed(seed)  # seed for reproducibility
     # generate indexes of unlabeled points
-    np.random.seed(seed)
     unlabeled_idx = np.random.randint(
         0, n_samples, size=int(n_samples * unlabeled_prop)
     )
@@ -155,6 +155,8 @@ def find_optimal_eta(X_l, y_l, X_unl, y_unl, seed):
     l_dataloader = DataLoader(l_dataset, shuffle=True, batch_size=BATCH_SIZE)
 
     n_classes = len(np.unique(y_l))
+
+    # get original model and train it (once)
     init_model, _ = get_model(n_inputs=X_l.shape[1], n_outputs=n_classes, seed=seed)
 
     print("Initial Training...")
@@ -179,10 +181,11 @@ def find_optimal_eta(X_l, y_l, X_unl, y_unl, seed):
         )
         print(f"Best ETA: {minimum}")
     else:
-
+        # second descents, dichotomy strategy
         eta_min = ETA_MIN
         eta_max = ETA_MAX
 
+        # train the two models at the bounds of the dichotomy
         min_model, min_density = get_model(
             n_inputs=X_l.shape[1],
             n_outputs=n_classes,
@@ -196,6 +199,7 @@ def find_optimal_eta(X_l, y_l, X_unl, y_unl, seed):
         print(
             f"Training for ETA={eta_min} ({min_density:.4f}) completed : Accuracy={min_res['acc']}"
         )
+
         max_model, max_density = get_model(
             n_inputs=X_l.shape[1],
             n_outputs=n_classes,
@@ -206,11 +210,12 @@ def find_optimal_eta(X_l, y_l, X_unl, y_unl, seed):
         max_res, _ = full_network_loop(
             max_model, l_dataloader, unl_dataloader, n_classes, N_EPOCHS
         )
-
         print(
             f"Training for ETA={eta_max} ({max_density:.4f}) completed : Accuracy={max_res['acc']}"
         )
+
         while eta_max - eta_min > THRESH:
+            # Do dichotomy algorithm to find best ETA
             eta_new = (eta_min + eta_max) // 2
             new_model, new_density = get_model(
                 n_inputs=X_l.shape[1],
@@ -229,30 +234,18 @@ def find_optimal_eta(X_l, y_l, X_unl, y_unl, seed):
             if new_res["acc"] >= min_res["acc"]:
                 eta_min = eta_new
                 min_res = new_res
-                min_changed = True
-                max_changed = False
             elif new_res["acc"] >= max_res["acc"]:
                 eta_max = eta_new
                 max_res = new_res
-                min_changed = False
-                max_changed = True
             else:
                 break
-
-        # if min_changed:
-        #     print(
-        #         f"\nBest acc for {N_FEATURES-N_USELESS-N_REDUNDANT} informative features: {max_res['acc']} obtained for eta={eta_max}"
-        #     )
-        # else:
-        #     print(
-        #         f"\nBest acc for {N_FEATURES-N_USELESS-N_REDUNDANT} informative features: {min_res['acc']} obtained for eta={eta_min}"
-        #     )
 
 
 def train_fixed_eta(
     eta, l_dataloader, unl_dataloader, n_classes, n_epochs, init_model, n_inputs
 ):
-    model, density = get_model(
+    """Wrapper function for instanciating and training a model for a given ETA"""
+    model, _ = get_model(
         n_inputs=n_inputs,
         n_outputs=n_classes,
         initial=False,
@@ -269,27 +262,35 @@ def train_fixed_eta(
 def get_model(
     n_inputs, n_outputs, seed=6, initial=True, prev_model=None, eta=None,
 ):
+    """Initialize a model, either initial or projected"""
     torch.manual_seed(seed)
 
     if initial:
         return netBio(n_inputs, n_outputs).to(DEVICE), 1.0
 
     else:
-        assert prev_model is not None
+        assert prev_model is not None  # we need a previously trained model
         mask = compute_mask(prev_model, PROJECTION, projection_param=eta)
+
+        # calculate the proportion of non-zero weights
         density = torch.sum(torch.flatten(mask)) / torch.prod(torch.tensor(mask.shape))
+
         model = netBio(n_inputs, n_outputs)
+        # store the mask as a non-trainable model parameter
         model.register_buffer(name="mask", tensor=mask)
+        # register the masking function as a pre-forward call
         model.register_forward_pre_hook(mask_gradient)
         model = model.to(DEVICE)
         return model, density
 
 
 def compute_mask(net, projection, projection_param):
+    # threshold under which a weight is considered zero
     tol = 1.0e-4
     full_mask = []
     for index, param in enumerate(net.parameters()):
         if index < len(list(net.parameters())) / 2 - 2 and index % 2 == 0:
+            # compute mask for all concerned layers
             mask = torch.where(
                 condition=(
                     torch.abs(
@@ -301,14 +302,13 @@ def compute_mask(net, projection, projection_param):
                 other=torch.ones_like(param),
             )
             full_mask.append(mask)
+    # turn list of masks into full mask tensor
     return torch.stack(full_mask)
 
 
 def mask_gradient(module, _):
     for index, param in enumerate(module.parameters()):
-        if (
-            index < len(list(module.parameters())) / 2 - 2 and index % 2 == 0
-        ):  # what does this do
+        if index < len(list(module.parameters())) / 2 - 2 and index % 2 == 0:
             param.data = module.mask[index] * param.data
 
 
@@ -325,8 +325,7 @@ def full_network_loop(
 
     # train for n epochs over X_l
     for i in tqdm(range(n_epochs)):
-        total_batch_loss = 0
-        for b_id, batch in enumerate(l_dataloader):
+        for batch in l_dataloader:
             x, lab = batch
             x = x.to(DEVICE)
             lab = lab.to(DEVICE)
@@ -339,22 +338,18 @@ def full_network_loop(
             loss.backward()
             optimizer.step()
 
-            total_batch_loss += loss.detach().cpu().item()
-
-        current_loss = total_batch_loss / len(l_dataloader)
-
         if i >= SWA_START:
             swa_model.update_parameters(model)
             swa_sched.step()
 
     # predict over X_unl
-    acc = get_accuracy(model, unl_dataloader, n_classes, DEVICE)
-    acc_swa = get_accuracy(swa_model, unl_dataloader, n_classes, DEVICE)
+    acc = get_accuracy(model, unl_dataloader, DEVICE)
+    acc_swa = get_accuracy(swa_model, unl_dataloader, DEVICE)
     return {"acc": acc, "acc_swa": acc_swa,}, model
 
 
 @torch.no_grad()
-def get_accuracy(model, dataloader, n_classes, device=DEVICE):
+def get_accuracy(model, dataloader, device=DEVICE):
     model.eval()
     res = pd.DataFrame(columns=["correct"])
     for i, batch in enumerate(dataloader):
