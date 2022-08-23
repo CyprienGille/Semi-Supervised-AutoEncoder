@@ -2,7 +2,7 @@
 
 This repository contains the code from :
 
-> Semi-supervised classification using a supervised autoencoder for biomedical applications, Gille C. and Guyard F. and Barlaud M., 2022
+> Semi-supervised classification using a supervised autoencoder for biomedical applications, Gille C. and Guyard F. and Barlaud M., (2022). https://arxiv.org/abs/2208.10315 .
 
 ## Repository contents
 
