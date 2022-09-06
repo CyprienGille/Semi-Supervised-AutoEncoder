@@ -2,6 +2,7 @@
 """Script to test semisupervised learning methods on synthetic and real data
 """
 from typing import Iterable
+
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
@@ -27,8 +28,8 @@ from functions.functions_semisupervise import (
     proj_l1ball,
     proj_l1infball,
     proj_l11ball,
-    weights_and_sparsity,
     show_img,
+    weights_and_sparsity,
 )
 
 mpl.rcParams["axes.titlesize"] = 15  # titre du plot
@@ -92,7 +93,7 @@ PROJECTION = proj_l11ball  # Projection L11
 # PROJECTION = proj_l1ball     # Projection L1
 # PROJECTION = proj_l1infball  # Projection L1inf
 ETA = 2375  # ETA for IPF
-# ETA = 93 # ETA for LUNG
+# ETA = 93  # ETA for LUNG
 
 #%%
 def plot_distributions(df_softmax, model_name, file_name, is_swa=False, bW=1):
@@ -161,7 +162,7 @@ def get_data(
         )
 
     else:
-        df = pd.read_csv(f"datas/{file_name}", sep=";", header=0).transpose()
+        df = pd.read_csv(f"data/{file_name}", sep=";", header=0).transpose()
         df.columns = df.loc["Name"]
         df.drop("Name", inplace=True)
         y = df["Label"].to_numpy() - 1  # Label in [1, 2] -> Label in [0, 1]
