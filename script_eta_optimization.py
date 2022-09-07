@@ -95,7 +95,7 @@ def get_data(
 
     else:
         # Format-specific data preparation steps
-        df = pd.read_csv(f"datas/{file_name}", sep=";", header=0).transpose()
+        df = pd.read_csv(f"data/{file_name}", sep=";", header=0).transpose()
         df.columns = df.loc["Name"]
         df.drop("Name", inplace=True)
         y = df["Label"].to_numpy() - 1  # Label in [1, 2] -> Label in [0, 1]
