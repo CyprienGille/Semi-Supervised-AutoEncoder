@@ -54,21 +54,14 @@ BW = 1  # smoothing parameter for the distribution plots
 SHOW_LATENT_SPACE = False  # plot latent space of SAE
 PLOT_MATRICES = True  # plot the feature/neurons matrices
 
+# save synthetic data in a csv in the data/ directory
+SAVE_DATA = True
+
 ## Parameters for real data
 file_name = None  # To use synthetic data
 # file_name = "LUNG.csv"  # To use a real csv
 # file_name = "IPFcellATLAS.csv"  # To use a real csv
-# UNL_PROPS = [
-#     0.1,
-#     0.2,
-#     0.3,
-#     0.4,
-#     0.5,
-#     0.6,
-#     0.7,
-#     0.8,
-#     0.9,
-# ]  # unlabeled proportions to try
+
 UNL_PROPS = [0.4]  # unlabeled proportions to try
 
 ## Parameters for synthetic data
@@ -76,7 +69,11 @@ UNLABELED_PROPORTION = 0.4  # default unlabeled proportion
 # SEPARABILITIES = [0.3, 0.6, 0.9, 1.2, 1.5, 2]  # separabilities to try
 SEPARABILITIES = [0.8]
 N_FEATURES = 10000
-N_SAMPLES = 5000
+# NB: N_INFORMATIVE = N_FEATURES - N_REDUNDANT - N_USELESS
+N_REDUNDANT = 0
+N_USELESS = 10000 - 8
+
+N_SAMPLES = 1000
 
 ## SAE params
 N_EPOCHS = 40  # total number of epochs (Adam + SWA)
@@ -92,6 +89,7 @@ SWA_LR = 1e-4  # swa learning rate
 PROJECTION = proj_l11ball  # Projection L11
 # PROJECTION = proj_l1ball     # Projection L1
 # PROJECTION = proj_l1infball  # Projection L1inf
+
 ETA = 2375  # ETA for IPF
 # ETA = 93  # ETA for LUNG
 
@@ -150,7 +148,7 @@ def get_data(
         X, y = make_classification(
             n_samples=n_samples,
             n_features=N_FEATURES,
-            n_informative=N_FEATURES,
+            n_informative=N_FEATURES - N_REDUNDANT - N_USELESS,
             n_redundant=0,
             n_repeated=0,
             n_classes=2,
@@ -159,6 +157,18 @@ def get_data(
             class_sep=separability,
             hypercube=True,
             random_state=seed,
+        )
+
+    if SAVE_DATA:
+        data_df = pd.DataFrame(
+            columns=[f"Feature_{i}" for i in range(N_FEATURES)], data=X
+        )
+        data_df["Label"] = y
+
+        data_df.to_csv(
+            f"data/Synth_{N_FEATURES}f_{N_FEATURES - N_REDUNDANT - N_USELESS}inf_{N_SAMPLES}s.csv",
+            index_label="Name",
+            sep=";",
         )
 
     else:
