@@ -161,9 +161,11 @@ def get_data(
 
     if SAVE_DATA:
         data_df = pd.DataFrame(
-            columns=[f"Feature_{i}" for i in range(N_FEATURES)], data=X
+            index=[f"Feature_{i}" for i in range(N_FEATURES)],
+            columns=[f"Sample {i}" for i in range(N_SAMPLES)],
+            data=X.transpose(),
         )
-        data_df["Label"] = y
+        data_df.loc["Label"] = y.transpose()
 
         data_df.to_csv(
             f"data/Synth_{N_FEATURES}f_{N_FEATURES - N_REDUNDANT - N_USELESS}inf_{N_SAMPLES}s.csv",
