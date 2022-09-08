@@ -161,12 +161,17 @@ def get_data(
 
     if SAVE_DATA:
         data_df = pd.DataFrame(
+            index=["Label"],
+            columns=[f"Sample_{i}" for i in range(N_SAMPLES)],
+            data=np.expand_dims(y, axis=0),  # shape (N_SAMPLES,) -> shape (1,N_SAMPLES)
+        )
+
+        X_df = pd.DataFrame(
             index=[f"Feature_{i}" for i in range(N_FEATURES)],
-            columns=[f"Sample {i}" for i in range(N_SAMPLES)],
+            columns=[f"Sample_{i}" for i in range(N_SAMPLES)],
             data=X.transpose(),
         )
-        data_df.loc["Label"] = y.transpose()
-
+        data_df = pd.concat([data_df, X_df])
         data_df.to_csv(
             f"data/Synth_{N_FEATURES}f_{N_FEATURES - N_REDUNDANT - N_USELESS}inf_{N_SAMPLES}s.csv",
             index_label="Name",
@@ -893,7 +898,9 @@ if __name__ == "__main__":
     import os
 
     os.makedirs(plots_dir, exist_ok=True)
+    os.makedirs(plots_dir + "distribs/", exist_ok=True)
     os.makedirs(results_dir, exist_ok=True)
+    os.makedirs(results_dir + "labelpredicts/", exist_ok=True)
 
     pd.DataFrame(index=list(range(N_EPOCHS))).to_csv(
         results_dir + losses_file_name, sep=";", index_label="epoch"
