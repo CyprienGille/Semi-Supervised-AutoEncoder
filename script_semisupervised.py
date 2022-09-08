@@ -61,6 +61,8 @@ SAVE_DATA = True
 file_name = None  # To use synthetic data
 # file_name = "LUNG.csv"  # To use a real csv
 # file_name = "IPFcellATLAS.csv"  # To use a real csv
+# file_name = "IFNGR2.csv"  # To use a real csv
+# file_name = "GC_Brest_D_MB.csv"  # To use a real csv
 
 UNL_PROPS = [0.4]  # unlabeled proportions to try
 
@@ -92,6 +94,7 @@ PROJECTION = proj_l11ball  # Projection L11
 
 ETA = 2375  # ETA for IPF
 # ETA = 93  # ETA for LUNG
+# ETA = 20    # ETA for IFNGR2 and BREAST
 
 #%%
 def plot_distributions(df_softmax, model_name, file_name, is_swa=False, bW=1):
