@@ -52,7 +52,7 @@ PLOT_DISTRIB = False
 BW = 1  # smoothing parameter for the distribution plots
 
 SHOW_LATENT_SPACE = False  # plot latent space of SAE
-PLOT_MATRICES = True  # plot the feature/neurons matrices
+PLOT_MATRICES = False  # plot the feature/neurons matrices
 
 # save synthetic data in a csv in the data/ directory
 SAVE_DATA = True
@@ -69,7 +69,7 @@ UNL_PROPS = [0.4]  # unlabeled proportions to try
 ## Parameters for synthetic data
 UNLABELED_PROPORTION = 0.4  # default unlabeled proportion
 # SEPARABILITIES = [0.3, 0.6, 0.9, 1.2, 1.5, 2]  # separabilities to try
-SEPARABILITIES = [0.8]
+SEPARABILITIES = [0.3]
 N_FEATURES = 10000
 # NB: N_INFORMATIVE = N_FEATURES - N_REDUNDANT - N_USELESS
 N_REDUNDANT = 0
@@ -78,22 +78,19 @@ N_USELESS = N_FEATURES - 8
 N_SAMPLES = 1000
 
 ## SAE params
-N_EPOCHS = 40  # total number of epochs (Adam + SWA)
+N_EPOCHS = 40  # total number of epochs
 LR_NN = 1e-4  # FCNN Learning rate
 LEARNING_RATE = 1e-4  # Adam learning rate
 LOSS_LAMBDA = 0.0005  # weight of the reconstruction loss
 BATCH_SIZE = 4
-# SWA params
-SWA_START = 33  # start of the Stochastic Weight Averaging
-SWA_LR = 1e-4  # swa learning rate
 
 # PROJECTION = None  # No projection
 PROJECTION = proj_l11ball  # Projection L11
 # PROJECTION = proj_l1ball     # Projection L1
 # PROJECTION = proj_l1infball  # Projection L1inf
 
-ETA = 2375  # ETA for IPF
-# ETA = 93  # ETA for LUNG
+# ETA = 2375  # ETA for IPF
+ETA = 93  # ETA for LUNG
 # ETA = 20    # ETA for IFNGR2 and BREAST
 
 #%%
@@ -287,23 +284,6 @@ def label_network(
     model_name=None,
     seed=None,
 ):
-    # if save_losses_file is not None:
-    #     try:
-    #         # complete an existing csv
-    #         df_losses = pd.read_csv(
-    #             results_dir + save_losses_file, sep=";", index_col="epoch"
-    #         )
-    #         swa_df_losses = pd.read_csv(
-    #             results_dir + "SWA_" + save_losses_file, sep=";", index_col="epoch"
-    #         )
-    #         # check that the existing csv was produced with the same number of epochs
-    #         assert len(df_losses.index) == N_EPOCHS
-    #         assert len(swa_df_losses.index) == N_EPOCHS
-    #     except:
-    #         # create a new csv
-    #         df_losses = pd.DataFrame(index=list(range(N_EPOCHS)))
-    #         swa_df_losses = pd.DataFrame(index=list(range(N_EPOCHS)))
-    #     assert model_name is not None  # we need a model's name to save its losses
 
     torch.manual_seed(seed)
     # prepare torch datasets and dataloaders
@@ -374,19 +354,14 @@ def full_network_loop(
     optimizer = optim.Adam(
         model.parameters(), lr=LEARNING_RATE if autoencoder else LR_NN
     )
-    swa_sched = SWALR(optimizer, swa_lr=SWA_LR, anneal_strategy="linear")
 
-    swa_model = AveragedModel(model, device=DEVICE)
-
-    loss_list, swa_loss_list, data_encoder = training_loop(
+    _, data_encoder = training_loop(
         n_epochs,
         l_dataloader,
         model,
         c_loss,
         r_loss,
         optimizer,
-        swa_model,
-        swa_sched,
         autoencoder=autoencoder,
     )
 
@@ -396,20 +371,6 @@ def full_network_loop(
         with_proj=prev_results is not None,
         name_modifier="Labeled",
     )
-
-    # if save_losses_file is not None:  # save losses per epoch
-    #     df_losses[model_name] = loss_list.numpy()
-    #     df_losses.to_csv(
-    #         results_dir + PROJECTION.__name__ + save_losses_file,
-    #         sep=";",
-    #         index_label="epoch",
-    #     )
-    #     swa_df_losses[model_name] = swa_loss_list.numpy()
-    #     swa_df_losses.to_csv(
-    #         results_dir + PROJECTION.__name__ + "SWA_" + save_losses_file,
-    #         sep=";",
-    #         index_label="epoch",
-    #     )
 
     # predict over X_unl
     res, df_softmax, data_encoder_unl = predict(
@@ -421,21 +382,6 @@ def full_network_loop(
         with_proj=prev_results is not None,
         name_modifier="Unlabeled",
     )
-    # predict over X_unl with the averaged model from SWA
-    res_swa, df_softmax_swa, data_encoder_unl_swa = predict(
-        swa_model, unl_dataloader, n_classes, DEVICE, autoencoder=autoencoder
-    )
-    df_softmax_swa.to_csv(
-        results_dir
-        + f"labelpredicts/labelpredict{file_name[:-4] if file_name is not None else 'Synth'}{'NN' if not autoencoder else ''}.csv",
-        index_label="Name",
-    )
-    plot_latent_space(
-        autoencoder,
-        data_encoder_unl_swa,
-        with_proj=prev_results is not None,
-        name_modifier="SWA Unlabeled",
-    )
 
     # save all metrics (Accuracy, AUC, etc...)
     name_modifier = "2nd_descent_" if prev_results is not None else ""
@@ -445,20 +391,13 @@ def full_network_loop(
         name=f"{name_modifier}{'SAE' if autoencoder else 'NN'}",
         seed=seed,
     )
-    save_metrics(
-        res_swa,
-        df_softmax_swa,
-        name=f"SWA_{name_modifier}{'SAE' if autoencoder else 'NN'}",
-        seed=seed,
-    )
 
     # plot distributions with kernel
     plot_distributions(df_softmax, model_name, file_name, is_swa=False)
-    plot_distributions(df_softmax_swa, model_name, file_name, is_swa=True)
 
     # Get the labeled data distribution
     _, l_df_softmax, _ = predict(
-        swa_model, l_dataloader, n_classes, DEVICE, autoencoder=autoencoder
+        model, l_dataloader, n_classes, DEVICE, autoencoder=autoencoder
     )
     l_df_softmax.to_csv(
         results_dir
@@ -493,11 +432,9 @@ def full_network_loop(
             plt.close()
 
     if prev_results is not None:
-        prev_results.update(
-            {"res_2nd": res, "res_swa_2nd": res_swa,}
-        )
+        prev_results.update({"res_2nd": res})
         return prev_results, model
-    return {"res": res, "res_swa": res_swa,}, model
+    return {"res": res}, model
 
 
 def get_model(
@@ -539,13 +476,10 @@ def training_loop(
     c_loss,
     r_loss,
     optimizer,
-    swa_model,
-    swa_sched,
     loss_lambda=LOSS_LAMBDA,
     autoencoder=False,
 ):
     loss_list = torch.zeros(size=(n_epochs, 1))
-    swa_loss_list = torch.zeros(size=(n_epochs, 1))
 
     # train for n epochs over X_l
     for i in prog(range(n_epochs)):
@@ -586,40 +520,8 @@ def training_loop(
             total_batch_loss += loss.detach().cpu().item()
 
         current_loss = total_batch_loss / len(l_dataloader)
-
-        if i >= SWA_START:
-            swa_model.update_parameters(model)
-            swa_loss_list[i] = compute_swa_loss(
-                swa_model, c_loss, r_loss, loss_lambda, l_dataloader, autoencoder
-            ) / len(l_dataloader)
-            swa_sched.step()
-        else:
-            swa_loss_list[i] = current_loss
         loss_list[i] = current_loss
-    return loss_list, swa_loss_list, data_encoder
-
-
-@torch.no_grad()
-def compute_swa_loss(
-    swa_model, c_loss, r_loss, loss_lambda, dataloader, autoencoder=False
-):
-    """Artificially compute the loss for an averaged model during training"""
-    swa_model.eval()
-    total_batch_loss = 0.0
-    for batch in dataloader:
-        x, lab = batch
-        x = x.to(DEVICE)
-        lab = lab.to(DEVICE)
-        if autoencoder:
-            swa_enc_out, swa_dec_out = swa_model(x)
-            swa_loss = c_loss(swa_enc_out, lab.long()) + loss_lambda * r_loss(
-                swa_dec_out, x
-            )
-        else:
-            swa_net_out = swa_model(x)
-            swa_loss = c_loss(swa_net_out, lab.long())
-        total_batch_loss += swa_loss.detach().cpu().item()
-    return total_batch_loss
+    return loss_list, data_encoder
 
 
 def compute_mask(net, projection, projection_param):
@@ -830,7 +732,7 @@ def compute_labeling_result(algo_name, seed=6):
     else:
         param_list = SEPARABILITIES
 
-    accuracies = {"acc": [], "acc_swa": [], "acc_2nd": [], "acc_swa_2nd": []}
+    accuracies = {"acc": [], "acc_2nd": []}
     for param in param_list:
         if file_name is not None:
             # vary unlabeled proportions
@@ -862,15 +764,6 @@ def compute_labeling_result(algo_name, seed=6):
         else:
             print(f"Separability {param} \t\t Accuracy {acc:.4f}")
 
-        if algo_name in ["NN", "SAE"]:
-            # if network, then we also have a SWA result
-            res_swa = labeling_results["res_swa"]
-            acc_swa = (res_swa.correct == True).sum() / len(res)
-            accuracies["acc_swa"].append(acc_swa)
-            if file_name is not None:
-                print(f"SWA : Unlabeled Prop {param} \t\t Accuracy : {acc_swa:.4f}")
-            else:
-                print(f"SWA : Separability {param} \t\t Accuracy {acc_swa:.4f}")
         if algo_name == "SAE" and PROJECTION is not None:
             # if SAE and projection, then we also have a 2nd descent result
             res_2nd = labeling_results["res_2nd"]
@@ -882,17 +775,7 @@ def compute_labeling_result(algo_name, seed=6):
                 )
             else:
                 print(f"2nd Descent : Separability {param} \t\t Accuracy {acc_2nd:.4f}")
-            res_swa_2nd = labeling_results["res_swa_2nd"]
-            acc_swa_2nd = (res_swa_2nd.correct == True).sum() / len(res)
-            accuracies["acc_swa_2nd"].append(acc_swa_2nd)
-            if file_name is not None:
-                print(
-                    f"2nd Descent, SWA : Unlabeled Prop {param} \t\t Accuracy : {acc_swa_2nd:.4f}"
-                )
-            else:
-                print(
-                    f"2nd Descent, SWA : Separability {param} \t\t Accuracy {acc_swa_2nd:.4f}"
-                )
+
     return accuracies
 
 
@@ -920,11 +803,8 @@ if __name__ == "__main__":
     lp_accs = []
     ls_accs = []
     nn_accs = []
-    nn_swa_accs = []
     sae_accs = []
-    sae_swa_accs = []
     sae_accs_2nd = []
-    sae_swa_accs_2nd = []
     for seed in SEEDS:
         print(f"--- Seed {seed} ---")
 
@@ -942,30 +822,21 @@ if __name__ == "__main__":
         torch.manual_seed(seed)
         accs = compute_labeling_result("NN", seed=seed)
         results[f"{seed}s_{N_FEATURES}f_NN"] = accs["acc"]
-        results[f"{seed}s_{N_FEATURES}f_NN_SWA"] = accs["acc_swa"]
         nn_accs.append(accs["acc"])
-        nn_swa_accs.append(accs["acc_swa"])
 
         # Perform experiment with SAE and SWA
         torch.manual_seed(seed)
         accs = compute_labeling_result("SAE", seed=seed)
         results[f"{seed}s_{N_FEATURES}f_SAE"] = accs["acc"]
-        results[f"{seed}s_{N_FEATURES}f_SAE_SWA"] = accs["acc_swa"]
         results[f"{seed}s_{N_FEATURES}f_SAE_2nd"] = accs["acc_2nd"]
-        results[f"{seed}s_{N_FEATURES}f_SAE_SWA_2nd"] = accs["acc_swa_2nd"]
         sae_accs.append(accs["acc"])
-        sae_swa_accs.append(accs["acc_swa"])
         sae_accs_2nd.append(accs["acc_2nd"])
-        sae_swa_accs_2nd.append(accs["acc_swa_2nd"])
 
     results[f"Mean_{N_FEATURES}f_LabProp"] = np.array(lp_accs).mean(axis=0)
     results[f"Mean_{N_FEATURES}f_LabSpread"] = np.array(ls_accs).mean(axis=0)
     results[f"Mean_{N_FEATURES}f_NN"] = np.array(nn_accs).mean(axis=0)
-    results[f"Mean_{N_FEATURES}f_NN_SWA"] = np.array(nn_swa_accs).mean(axis=0)
     results[f"Mean_{N_FEATURES}f_SAE"] = np.array(sae_accs).mean(axis=0)
-    results[f"Mean_{N_FEATURES}f_SAE_SWA"] = np.array(sae_swa_accs).mean(axis=0)
     results[f"Mean_{N_FEATURES}f_SAE_2nd"] = np.array(sae_accs_2nd).mean(axis=0)
-    results[f"Mean_{N_FEATURES}f_SAE_SWA_2nd"] = np.array(sae_swa_accs_2nd).mean(axis=0)
 
     results.to_csv(results_dir + output_name, sep=";", index_label="Param")
 
