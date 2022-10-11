@@ -160,24 +160,26 @@ def get_data(
             random_state=seed,
         )
 
-    if SAVE_DATA:
-        data_df = pd.DataFrame(
-            index=["Label"],
-            columns=[f"Sample_{i}" for i in range(N_SAMPLES)],
-            data=np.expand_dims(y, axis=0),  # shape (N_SAMPLES,) -> shape (1,N_SAMPLES)
-        )
+        if SAVE_DATA:
+            data_df = pd.DataFrame(
+                index=["Label"],
+                columns=[f"Sample_{i}" for i in range(N_SAMPLES)],
+                data=np.expand_dims(
+                    y, axis=0
+                ),  # shape (N_SAMPLES,) -> shape (1,N_SAMPLES)
+            )
 
-        X_df = pd.DataFrame(
-            index=[f"Feature_{i}" for i in range(N_FEATURES)],
-            columns=[f"Sample_{i}" for i in range(N_SAMPLES)],
-            data=X.transpose(),  # type: ignore
-        )
-        data_df = pd.concat([data_df, X_df])
-        data_df.to_csv(
-            f"data/Synth_{N_FEATURES}f_{N_FEATURES - N_REDUNDANT - N_USELESS}inf_{N_SAMPLES}s.csv",
-            index_label="Name",
-            sep=";",
-        )
+            X_df = pd.DataFrame(
+                index=[f"Feature_{i}" for i in range(N_FEATURES)],
+                columns=[f"Sample_{i}" for i in range(N_SAMPLES)],
+                data=X.transpose(),  # type: ignore
+            )
+            data_df = pd.concat([data_df, X_df])
+            data_df.to_csv(
+                f"data/Synth_{N_FEATURES}f_{N_FEATURES - N_REDUNDANT - N_USELESS}inf_{N_SAMPLES}s.csv",
+                index_label="Name",
+                sep=";",
+            )
 
     else:
         df = pd.read_csv(f"data/{file_name}", sep=";", header=0).transpose()
