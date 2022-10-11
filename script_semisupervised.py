@@ -44,7 +44,7 @@ plots_dir = "plots/"
 resume = False
 output_name = "Acc_Temp.csv"  # name of the accuracy/unlabeled prop or accuracy/separability output csv
 losses_file_name = "Losses_Temp.csv"  # name of the losses-per-epoch output csv
-SEEDS = [7]
+SEEDS = [7, 8, 9]
 PROGRESS_BAR = True  # display progress bars for the training of the SAE
 
 # display distribution of labels (plots will be saved in plots_dir even if the plot booleans are False)
@@ -69,11 +69,11 @@ UNL_PROPS = [0.4]  # unlabeled proportions to try
 ## Parameters for synthetic data
 UNLABELED_PROPORTION = 0.4  # default unlabeled proportion
 # SEPARABILITIES = [0.3, 0.6, 0.9, 1.2, 1.5, 2]  # separabilities to try
-SEPARABILITIES = [0.3]
+SEPARABILITIES = [0.8]
 N_FEATURES = 10000
 # NB: N_INFORMATIVE = N_FEATURES - N_REDUNDANT - N_USELESS
 N_REDUNDANT = 0
-N_USELESS = N_FEATURES - 8
+N_USELESS = N_FEATURES - 2
 
 N_SAMPLES = 1000
 
@@ -90,8 +90,9 @@ PROJECTION = proj_l11ball  # Projection L11
 # PROJECTION = proj_l1infball  # Projection L1inf
 
 # ETA = 2375  # ETA for IPF
-ETA = 93  # ETA for LUNG
+# ETA = 93  # ETA for LUNG
 # ETA = 20    # ETA for IFNGR2 and BREAST
+ETA = 1
 
 #%%
 def plot_distributions(df_softmax, model_name, file_name, is_swa=False, bW=1):
@@ -169,7 +170,7 @@ def get_data(
         X_df = pd.DataFrame(
             index=[f"Feature_{i}" for i in range(N_FEATURES)],
             columns=[f"Sample_{i}" for i in range(N_SAMPLES)],
-            data=X.transpose(),
+            data=X.transpose(),  # type: ignore
         )
         data_df = pd.concat([data_df, X_df])
         data_df.to_csv(
@@ -837,6 +838,13 @@ if __name__ == "__main__":
     results[f"Mean_{N_FEATURES}f_NN"] = np.array(nn_accs).mean(axis=0)
     results[f"Mean_{N_FEATURES}f_SAE"] = np.array(sae_accs).mean(axis=0)
     results[f"Mean_{N_FEATURES}f_SAE_2nd"] = np.array(sae_accs_2nd).mean(axis=0)
+
+    print("\n**** Mean accuracy over all seeds ****")
+    print(f'LabProp: {results[f"Mean_{N_FEATURES}f_LabProp"].values}')
+    print(f'LabSpread: {results[f"Mean_{N_FEATURES}f_LabSpread"].values}')
+    print(f'FCNN: {results[f"Mean_{N_FEATURES}f_NN"].values}')
+    print(f'SAE: {results[f"Mean_{N_FEATURES}f_SAE"].values}')
+    print(f'SAE Proj: {results[f"Mean_{N_FEATURES}f_SAE_2nd"].values}')
 
     results.to_csv(results_dir + output_name, sep=";", index_label="Param")
 
