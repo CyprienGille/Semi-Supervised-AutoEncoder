@@ -11,21 +11,20 @@ mpl.rcParams["axes.titlesize"] = 15  # titre du plot
 mpl.rcParams["axes.labelsize"] = 13  # titres des axes
 mpl.rcParams["legend.fontsize"] = 11  # legende des courbes
 
-results_dir = "results_semi/"
+results_dir = "results_semi/"  # directory with the csv result file
+
+df = pd.read_csv(results_dir + f"Acc_Temp.csv", index_col="Param", sep=";")
 
 
-df = pd.read_csv(results_dir + f"Acc_Sep_Synth.csv", index_col="Param", sep=";")
-
-
-colors = ["green", "blue", "orange", "red", "purple"]  # 1 color per algo
+colors = ["green", "blue", "orange", "red", "purple"]
 
 # for synthetic data, put here a list of all tested dimensions
 # Note: to fill a csv with accuracies obtained with a changing number of features,
 # use the parameter resume=True in synthetic_semisup_tests.py
-n_features = [1000, 10000]  # synthetic data
+n_features = [1000]  # synthetic data
 
 
-plt.figure(figsize=(8, 4))  # good size for 2 values of d
+plt.figure(figsize=(8, 4))  # figure size
 for i, nf in enumerate(n_features):
     plt.subplot(1, len(n_features), i + 1)
     plt.plot(
@@ -47,20 +46,14 @@ for i, nf in enumerate(n_features):
         linestyle="dotted",
     )
     plt.plot(
-        df.index,
-        df[f"Mean_{nf}f_NN_SWA"],
-        label=f"NN",
-        alpha=0.7,
-        c=colors[3],
-        marker="o",
+        df.index, df[f"Mean_{nf}f_NN"], label=f"NN", alpha=0.7, c=colors[3], marker="o",
     )
     plt.plot(
-        df.index, df[f"Mean_{nf}f_SAE_SWA_2nd"], label=f"SAE", c=colors[2], marker="o",
+        df.index, df[f"Mean_{nf}f_SAE_2nd"], label=f"SAE", c=colors[2], marker="o",
     )
 
     plt.legend()
-
-    plt.xlabel(f"Data separability, d={nf}")
+    plt.xlabel(f"Data separability")
 
     if i == 0:
         # label the left-most y axis
