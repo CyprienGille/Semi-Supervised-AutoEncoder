@@ -68,12 +68,12 @@ UNL_PROPS = [0.4]  # unlabeled proportions to try
 
 ## Parameters for synthetic data
 UNLABELED_PROPORTION = 0.4  # default unlabeled proportion
-# SEPARABILITIES = [0.3, 0.6, 0.9, 1.2, 1.5, 2]  # separabilities to try
+# SEPARABILITIES = [0.5, 0.75, 1.0, 1.5]  # separabilities to try
 SEPARABILITIES = [0.8]
-N_FEATURES = 10000
+N_FEATURES = 1000
 # NB: N_INFORMATIVE = N_FEATURES - N_REDUNDANT - N_USELESS
 N_REDUNDANT = 0
-N_USELESS = N_FEATURES - 2
+N_USELESS = N_FEATURES - 8
 
 N_SAMPLES = 1000
 
@@ -92,7 +92,7 @@ PROJECTION = proj_l11ball  # Projection L11
 # ETA = 2375  # ETA for IPF
 # ETA = 93  # ETA for LUNG
 # ETA = 20    # ETA for IFNGR2 and BREAST
-ETA = 1
+ETA = 10
 
 #%%
 def plot_distributions(df_softmax, model_name, file_name, is_swa=False, bW=1):
@@ -680,6 +680,19 @@ def save_metrics(res, df_softmax, name, seed):
     )
 
 
+def print_mean_metrics():
+    print("\n*** Mean Metrics over all Seeds ***")
+    for algo_name in ["LabelPropagation", "LabelSpreading", "NN", "2nd_descent_SAE"]:
+        df_metrics = pd.read_csv(
+            results_dir + "metrics/" + algo_name + "_metrics.csv",
+            index_col="Seed",
+            sep=";",
+        )
+        print(algo_name + " mean metrics:")
+        print(f"AUC : {df_metrics.at['Mean over all seeds', 'AUC']:.3}")
+        print(f"F1 Score : {df_metrics.at['Mean over all seeds', 'F1 Score']:.3}\n")
+
+
 #%%
 # General labeling function, choosing between algorithms
 def labeling_func(X_l, X_unl, y_l, y_unl, algo_name, sae_model_name=None, seed=None):
@@ -791,6 +804,11 @@ if __name__ == "__main__":
     os.makedirs(results_dir, exist_ok=True)
     os.makedirs(results_dir + "labelpredicts/", exist_ok=True)
 
+    if not resume:
+        for file in os.listdir(results_dir + "metrics/"):
+            # empty the metrics directory
+            os.remove(results_dir + "metrics/" + file)
+
     pd.DataFrame(index=list(range(N_EPOCHS))).to_csv(
         results_dir + losses_file_name, sep=";", index_label="epoch"
     )
@@ -848,6 +866,9 @@ if __name__ == "__main__":
     print(f'SAE: {results[f"Mean_{N_FEATURES}f_SAE"].values}')
     print(f'SAE Proj: {results[f"Mean_{N_FEATURES}f_SAE_2nd"].values}')
 
+    print_mean_metrics()
+
     results.to_csv(results_dir + output_name, sep=";", index_label="Param")
+
 
 #%%
